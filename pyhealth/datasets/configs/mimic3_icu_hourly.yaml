@@ -1,0 +1,68 @@
+version: "1.4"
+tables:
+  patients:
+    file_path: "PATIENTS.csv.gz"
+    patient_id: "subject_id"
+    timestamp: null
+    attributes:
+      - "gender"
+      - "dob"
+      - "dod"
+      - "dod_hosp"
+      - "dod_ssn"
+      - "expire_flag"
+
+  admissions:
+    file_path: "ADMISSIONS.csv.gz"
+    patient_id: "subject_id"
+    timestamp: "admittime"
+    attributes:
+      - "hadm_id"
+      - "admission_type"
+      - "admission_location"
+      - "insurance"
+      - "language"
+      - "religion"
+      - "marital_status"
+      - "ethnicity"
+      - "edregtime"
+      - "edouttime"
+      - "diagnosis"
+      - "discharge_location"
+      - "dischtime"
+      - "hospital_expire_flag"
+
+  icustays:
+    file_path: "ICUSTAYS.csv.gz"
+    patient_id: "subject_id"
+    timestamp: "intime"
+    attributes:
+      - "icustay_id"
+      - "hadm_id"
+      - "first_careunit"
+      - "dbsource"
+      - "last_careunit"
+      - "outtime"
+
+  labevents:
+    file_path: "LABEVENTS.csv.gz"
+    patient_id: "subject_id"
+    join:
+      - file_path: "D_LABITEMS.csv.gz"
+        "on": "itemid"
+        how: "inner"
+        columns:
+          - "label"
+          - "fluid"
+          - "category"
+    timestamp: "charttime"
+    attributes:
+      - "itemid"
+      - "hadm_id"
+      - "label"
+      - "fluid"
+      - "category"
+      - "value"
+      - "valuenum"
+      - "valueuom"
+      - "flag"
