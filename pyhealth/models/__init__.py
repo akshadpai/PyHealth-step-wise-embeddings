@@ -7,6 +7,7 @@ from .concare import ConCare, ConCareLayer
 from .contrawr import ContraWR, ResBlock2D
 from .deepr import Deepr, DeeprLayer
 from .embedding import EmbeddingModel
+from .ft_transformer import FTTransformer
 from .gamenet import GAMENet, GAMENetLayer
 from .jamba_ehr import JambaEHR, JambaLayer
 from .logistic_regression import LogisticRegression
@@ -43,5 +44,4 @@ from .vision_embedding import VisionEmbeddingModel
 from .text_embedding import TextEmbedding
 from .sdoh import SdohClassifier
 from .stepwise_embedding import StepWiseEmbeddingModel
-from .medlink import MedLink
 from .unified_embedding import UnifiedMultimodalEmbeddingModel, SinusoidalTimeEmbedding
