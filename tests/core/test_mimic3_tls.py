@@ -4,11 +4,44 @@ Uses synthetic data only. No real MIMIC-III or HDF5 data required.
 """
 
 import unittest
+from datetime import datetime, timedelta
 
 import numpy as np
+import polars as pl
 
+from pyhealth.data import Patient
 from pyhealth.datasets import create_sample_dataset
 from pyhealth.datasets.mimic3_tls import MIMIC3TLSDataset
+from pyhealth.tasks import InHospitalMortalityTLS
+
+
+def _feature_vector(fill: float) -> list:
+    """Length-42 feature vector with a single diagnostic value."""
+    return [fill] + [0.0] * (len(MIMIC3TLSDataset.FEATURE_NAMES) - 1)
+
+
+def _tls_timeseries_row(
+    patient_id: str,
+    hour_offset: int,
+    ihm_label,
+    feature_vec: list,
+) -> dict:
+    """One global-event row matching BaseDataset TLS table layout."""
+    base = datetime(2000, 1, 1)
+    row = {
+        "patient_id": patient_id,
+        "event_type": "timeseries",
+        "timestamp": base + timedelta(hours=hour_offset),
+        "timeseries/stay_id": patient_id,
+        "timeseries/ihm_label": ihm_label,
+    }
+    for i, name in enumerate(MIMIC3TLSDataset.FEATURE_NAMES):
+        row[f"timeseries/{name}"] = feature_vec[i]
+    return row
+
+
+def _patient_from_tls_rows(rows: list) -> Patient:
+    return Patient(patient_id=rows[0]["patient_id"], data_source=pl.DataFrame(rows))
 
 
 class TestMIMIC3TLSConstants(unittest.TestCase):
@@ -188,6 +221,116 @@ class TestInHospitalMortalityTLSWithSyntheticData(unittest.TestCase):
         if isinstance(ts, tuple):
             ts = ts[0]
         self.assertEqual(ts.shape[1], len(subset))
+
+
+class TestInHospitalMortalityTLSCall(unittest.TestCase):
+    """Exercise InHospitalMortalityTLS.__call__ on synthetic Patient events."""
+
+    def test_sorts_events_by_timestamp(self):
+        rows = [
+            _tls_timeseries_row("p1", 2, 0, _feature_vector(30.0)),
+            _tls_timeseries_row("p1", 0, 0, _feature_vector(10.0)),
+            _tls_timeseries_row("p1", 1, 0, _feature_vector(20.0)),
+        ]
+        patient = _patient_from_tls_rows(rows)
+        task = InHospitalMortalityTLS(observation_hours=48)
+        out = task(patient)
+        self.assertEqual(len(out), 1)
+        ts = out[0]["time_series"]
+        self.assertEqual(ts[0][0], 10.0)
+        self.assertEqual(ts[1][0], 20.0)
+        self.assertEqual(ts[2][0], 30.0)
+
+    def test_truncates_to_observation_hours(self):
+        rows = [
+            _tls_timeseries_row("p1", h, 1, _feature_vector(float(h)))
+            for h in range(6)
+        ]
+        patient = _patient_from_tls_rows(rows)
+        task = InHospitalMortalityTLS(observation_hours=3)
+        out = task(patient)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(len(out[0]["time_series"]), 3)
+        for i, row in enumerate(out[0]["time_series"]):
+            self.assertEqual(row[0], float(i))
+
+    def test_label_from_first_event_after_sort(self):
+        rows = [
+            _tls_timeseries_row("p1", 1, 0, _feature_vector(1.0)),
+            _tls_timeseries_row("p1", 0, 1, _feature_vector(0.0)),
+        ]
+        patient = _patient_from_tls_rows(rows)
+        out = InHospitalMortalityTLS()(patient)
+        self.assertEqual(out[0]["ihm"], 1)
+
+    def test_nan_and_non_numeric_features_become_zero(self):
+        vec = _feature_vector(5.0)
+        vec[3] = float("nan")
+        rows = [
+            _tls_timeseries_row("p1", 0, 0, vec),
+            _tls_timeseries_row("p1", 1, 0, _feature_vector(2.0)),
+        ]
+        vec2 = _feature_vector(1.0)
+        vec2[5] = "not_a_number"
+        rows[1] = _tls_timeseries_row("p1", 1, 0, vec2)
+        patient = _patient_from_tls_rows(rows)
+        out = InHospitalMortalityTLS()(patient)
+        row0 = out[0]["time_series"][0]
+        self.assertEqual(row0[3], 0.0)
+        row1 = out[0]["time_series"][1]
+        self.assertEqual(row1[5], 0.0)
+
+    def test_feature_subset_columns(self):
+        vec = [float(i) for i in range(42)]
+        rows = [
+            _tls_timeseries_row("p1", 0, 0, vec),
+            _tls_timeseries_row("p1", 1, 0, vec),
+        ]
+        patient = _patient_from_tls_rows(rows)
+        subset = [0, 2, 4]
+        task = InHospitalMortalityTLS(feature_subset=subset)
+        out = task(patient)
+        self.assertEqual(len(out[0]["time_series"][0]), 3)
+        self.assertEqual(out[0]["time_series"][0], [0.0, 2.0, 4.0])
+
+    def test_returns_empty_for_no_timeseries_events(self):
+        base = datetime(2000, 1, 1)
+        row = {
+            "patient_id": "p1",
+            "event_type": "other",
+            "timestamp": base,
+            "timeseries/stay_id": "p1",
+            "timeseries/ihm_label": 0,
+            **{
+                f"timeseries/{n}": 0.0
+                for n in MIMIC3TLSDataset.FEATURE_NAMES
+            },
+        }
+        patient = Patient(
+            patient_id="p1", data_source=pl.DataFrame([row])
+        )
+        self.assertEqual(InHospitalMortalityTLS()(patient), [])
+
+    def test_returns_empty_for_single_timestep(self):
+        rows = [_tls_timeseries_row("p1", 0, 0, _feature_vector(1.0))]
+        patient = _patient_from_tls_rows(rows)
+        self.assertEqual(InHospitalMortalityTLS()(patient), [])
+
+    def test_returns_empty_for_invalid_ihm_label(self):
+        rows = [
+            _tls_timeseries_row("p1", 0, 2, _feature_vector(0.0)),
+            _tls_timeseries_row("p1", 1, 2, _feature_vector(0.0)),
+        ]
+        patient = _patient_from_tls_rows(rows)
+        self.assertEqual(InHospitalMortalityTLS()(patient), [])
+
+    def test_returns_empty_for_non_parseable_ihm(self):
+        rows = [
+            _tls_timeseries_row("p1", 0, "no", _feature_vector(0.0)),
+            _tls_timeseries_row("p1", 1, "no", _feature_vector(0.0)),
+        ]
+        patient = _patient_from_tls_rows(rows)
+        self.assertEqual(InHospitalMortalityTLS()(patient), [])
 
 
 if __name__ == "__main__":
