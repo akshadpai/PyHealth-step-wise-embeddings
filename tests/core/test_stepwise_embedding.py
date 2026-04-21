@@ -1,5 +1,19 @@
 """Tests for the StepwiseEmbedding model.
 
+Contributors:
+    Akshad Pai (NetID: avpai2), Matthew Ruth (NetID: mrruth2)
+
+Paper:
+    On the Importance of Step-wise Embeddings for Heterogeneous Clinical
+    Time-Series (Kuznetsova et al., JMLR 2023)
+
+Paper link:
+    https://jmlr.org/papers/v24/22-0850.html
+
+Description:
+    Unit tests for StepwiseEmbedding forward/backward and grouping variants
+    using ``create_sample_dataset`` tensors only (no clinical data files).
+
 Uses synthetic data only. All tests should complete in milliseconds.
 """
 

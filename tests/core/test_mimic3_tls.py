@@ -1,5 +1,19 @@
 """Tests for MIMIC3TLSDataset and InHospitalMortalityTLS task.
 
+Contributors:
+    Akshad Pai (NetID: avpai2), Matthew Ruth (NetID: mrruth2)
+
+Paper:
+    On the Importance of Step-wise Embeddings for Heterogeneous Clinical
+    Time-Series (Kuznetsova et al., JMLR 2023)
+
+Paper link:
+    https://jmlr.org/papers/v24/22-0850.html
+
+Description:
+    Unit tests for TLS dataset constants/groupings and for IHM TLS task
+    ``__call__`` on synthetic Patient events (no real MIMIC or HDF5).
+
 Uses synthetic data only. No real MIMIC-III or HDF5 data required.
 """
 
