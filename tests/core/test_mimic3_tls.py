@@ -141,10 +141,10 @@ class TestInHospitalMortalityTLSWithSyntheticData(unittest.TestCase):
         self.samples = [
             {
                 "patient_id": f"patient-{i}",
-                "time_series": np.random.randn(48, 42).tolist(),
+                "time_series": np.random.randn(8, 42).tolist(),
                 "ihm": i % 2,
             }
-            for i in range(4)
+            for i in range(3)
         ]
         self.dataset = create_sample_dataset(
             samples=self.samples,
@@ -154,8 +154,8 @@ class TestInHospitalMortalityTLSWithSyntheticData(unittest.TestCase):
         )
 
     def test_dataset_length(self):
-        """Dataset should contain all 4 samples."""
-        self.assertEqual(len(self.dataset), 4)
+        """Dataset should contain all synthetic samples."""
+        self.assertEqual(len(self.dataset), 3)
 
     def test_sample_keys(self):
         """Each sample should have time_series and ihm keys."""
@@ -164,12 +164,12 @@ class TestInHospitalMortalityTLSWithSyntheticData(unittest.TestCase):
         self.assertIn("ihm", sample)
 
     def test_time_series_shape(self):
-        """time_series should be a (48, 42) tensor."""
+        """time_series should be a small (8, 42) tensor."""
         sample = self.dataset[0]
         ts = sample["time_series"]
         if isinstance(ts, tuple):
             ts = ts[0]
-        self.assertEqual(ts.shape, (48, 42))
+        self.assertEqual(ts.shape, (8, 42))
 
     def test_ihm_label_values(self):
         """ihm labels should be 0 or 1."""
@@ -191,26 +191,26 @@ class TestInHospitalMortalityTLSWithSyntheticData(unittest.TestCase):
 
     def test_short_observation_window(self):
         """Samples with shorter time series should work."""
-        samples_24h = [
+        samples_short = [
             {
                 "patient_id": f"p-{i}",
-                "time_series": np.random.randn(24, 42).tolist(),
+                "time_series": np.random.randn(6, 42).tolist(),
                 "ihm": i % 2,
             }
             for i in range(2)
         ]
         ds = create_sample_dataset(
-            samples=samples_24h,
+            samples=samples_short,
             input_schema={"time_series": "tensor"},
             output_schema={"ihm": "binary"},
-            dataset_name="test_24h",
+            dataset_name="test_short",
         )
         self.assertEqual(len(ds), 2)
         sample = ds[0]
         ts = sample["time_series"]
         if isinstance(ts, tuple):
             ts = ts[0]
-        self.assertEqual(ts.shape[0], 24)
+        self.assertEqual(ts.shape[0], 6)
         self.assertEqual(ts.shape[1], 42)
 
     def test_feature_subset(self):
@@ -219,7 +219,7 @@ class TestInHospitalMortalityTLSWithSyntheticData(unittest.TestCase):
         samples_sub = [
             {
                 "patient_id": f"p-{i}",
-                "time_series": np.random.randn(48, len(subset)).tolist(),
+                "time_series": np.random.randn(8, len(subset)).tolist(),
                 "ihm": i % 2,
             }
             for i in range(2)
